@@ -38,8 +38,8 @@ export async function GET() {
     const agentState = getAgentState();
     // Priority: env override > DB state > sandbox fallback
     let finalAgentState = agentState;
-    if (process.env.AGENT_STATE) {
-      finalAgentState = process.env.AGENT_STATE as any;
+    if (process.env.AGENT_STATE?.trim()) {
+      finalAgentState = process.env.AGENT_STATE.trim() as any;
     } else if (agentState === "setup" && sandboxDetail?.status === "running") {
       finalAgentState = "running";
     }
