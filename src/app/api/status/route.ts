@@ -50,14 +50,8 @@ export async function GET() {
     }
 
     let totalCostCents = getTotalCost();
-    if (totalCostCents === 0 && creditHistoryRaw.transactions.length > 0) {
-      // Sum all negative (debit) transactions from credit history
-      totalCostCents = creditHistoryRaw.transactions
-        .filter((t: any) => t.amount_cents < 0)
-        .reduce((sum: number, t: any) => sum + Math.abs(t.amount_cents), 0);
-    }
     if (totalCostCents === 0) {
-      // Secondary fallback: initial credits - current credits
+      // Primary fallback: initial credits - current credits (accurate without full history)
       const initialCredits = parseInt(process.env.INITIAL_CREDITS_CENTS || "3000", 10);
       totalCostCents = Math.max(0, initialCredits - creditsCents);
     }
