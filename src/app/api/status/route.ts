@@ -37,7 +37,12 @@ export async function GET() {
     // DB queries (synchronous)
     const agentState = getAgentState();
     const turnCount = getTurnCount();
-    const totalCostCents = getTotalCost();
+    let totalCostCents = getTotalCost();
+    if (totalCostCents === 0) {
+      // Fallback: initial credits - current credits = total spent
+      const initialCredits = parseInt(process.env.INITIAL_CREDITS_CENTS || "3000", 10);
+      totalCostCents = Math.max(0, initialCredits - creditsCents);
+    }
     const heartbeats = getHeartbeatEntries();
     const children = getChildren();
     const recentTurns = getRecentTurns(20);
