@@ -116,6 +116,12 @@ export interface DashboardStatus {
   recentTransactions: Transaction[];
   costByHour: { hour: string; cost: number }[];
   timestamp: string;
+  // Extended fields
+  roi?: ROIData;
+  activitySummary?: ActivitySummary;
+  sandboxDetail?: SandboxDetail;
+  balanceHistory?: { timestamp: string; balanceCents: number }[];
+  totalApiTransactions?: number;
 }
 
 // ─── SSE Event ───────────────────────────────────────────────────
@@ -124,4 +130,55 @@ export interface SSEEvent {
   type: "turn" | "tool_call" | "state_change" | "transaction" | "heartbeat";
   data: unknown;
   timestamp: string;
+}
+
+// ─── Conway API Extended Types ──────────────────────────────────
+
+export interface CreditTransaction {
+  id: string;
+  type: string;
+  amount_cents: number;
+  balance_after_cents: number;
+  description: string;
+  created_at: string;
+}
+
+export interface SandboxDetail {
+  id: string;
+  status: string;
+  created_at?: string;
+  cpu?: number;
+  memory_mb?: number;
+  [key: string]: unknown;
+}
+
+// ─── ROI Types ──────────────────────────────────────────────────
+
+export interface ROIData {
+  initialInvestmentCents: number;
+  initialCreditsCents: number;
+  initialUsdcDollars: number;
+  currentValueCents: number;
+  netChangeCents: number;
+  roiPercent: number;
+  burnRateCentsPerHour: number;
+  runwayHours: number;
+  creditDepletionPercent: number;
+}
+
+export interface ActivitySummary {
+  avgCostPerTurnCents: number;
+  totalTurnsToday: number;
+  mostActiveHour: string;
+  totalCostTodayCents: number;
+}
+
+export interface ApiLog {
+  id: string;
+  timestamp: string;
+  type: string;
+  costCents: number;
+  balanceAfterCents: number;
+  description: string;
+  model: string;
 }

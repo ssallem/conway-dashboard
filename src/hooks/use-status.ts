@@ -41,3 +41,21 @@ export function useTurns(limit = 20, offset = 0) {
     refresh: mutate,
   };
 }
+
+export function useLogs(limit = 20, offset = 0) {
+  const { data, error, isLoading, mutate } = useSWR(
+    `/api/logs?limit=${limit}&offset=${offset}`,
+    fetcher,
+    { refreshInterval: 15000 }
+  );
+
+  return {
+    source: (data?.source as "db" | "api") || "unknown",
+    turns: data?.turns || [],
+    logs: data?.logs || [],
+    total: data?.total || 0,
+    error,
+    isLoading,
+    refresh: mutate,
+  };
+}

@@ -7,6 +7,10 @@ import { StatusCards } from "@/components/dashboard/status-cards";
 import { ActivityFeed } from "@/components/dashboard/activity-feed";
 import { CostChart } from "@/components/dashboard/cost-chart";
 import { AgentControlPanel } from "@/components/controls/agent-control-panel";
+import { ROICard } from "@/components/dashboard/roi-card";
+import { BalanceHistoryChart } from "@/components/dashboard/balance-history-chart";
+import { ActivitySummary } from "@/components/dashboard/activity-summary";
+import { SandboxStatusCard } from "@/components/dashboard/sandbox-status-card";
 
 export default function DashboardPage() {
   const { status, isLoading, refresh } = useStatus();
@@ -30,17 +34,33 @@ export default function DashboardPage() {
           isLoading={isLoading}
         />
 
+        {/* ROI Card */}
+        <ROICard
+          creditsCents={status?.creditsCents}
+          usdcBalance={status?.usdcBalance}
+          roi={status?.roi}
+          isLoading={isLoading}
+        />
+
+        {/* Activity Summary */}
+        <ActivitySummary
+          summary={status?.activitySummary}
+          totalApiTransactions={status?.totalApiTransactions}
+          isLoading={isLoading}
+        />
+
         {/* Main Grid */}
         <div className="grid gap-6 grid-cols-1 lg:grid-cols-3">
-          {/* Activity Feed - 2 cols */}
-          <div className="lg:col-span-2">
+          {/* Activity Feed + Balance History - 2 cols */}
+          <div className="lg:col-span-2 space-y-6">
             <ActivityFeed
               turns={status?.recentTurns}
               isLoading={isLoading}
             />
+            <BalanceHistoryChart data={status?.balanceHistory} />
           </div>
 
-          {/* Control Panel - 1 col */}
+          {/* Control Panel + Sandbox + Cost - 1 col */}
           <div className="space-y-6">
             <AgentControlPanel
               walletAddress={status?.walletAddress}
@@ -50,6 +70,11 @@ export default function DashboardPage() {
               heartbeats={status?.heartbeats}
               children={status?.children}
               onRefresh={() => refresh()}
+            />
+            <SandboxStatusCard
+              sandboxId={status?.sandboxId}
+              detail={status?.sandboxDetail}
+              isLoading={isLoading}
             />
             <CostChart data={status?.costByHour} />
           </div>

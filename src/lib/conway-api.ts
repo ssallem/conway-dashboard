@@ -72,3 +72,32 @@ export async function topupCredits(
     return { success: false, error: e.message };
   }
 }
+
+export async function getCreditHistory(
+  limit: number = 50,
+  offset: number = 0
+): Promise<{ transactions: any[]; total: number }> {
+  try {
+    const raw = await conwayRequest("GET", `/v1/credits/history?limit=${limit}&offset=${offset}`);
+    const txList = raw?.transactions ?? raw?.items ?? (Array.isArray(raw) ? raw : []);
+    let total = txList.length;
+    if (typeof raw?.total === "string" && raw.total.includes("/")) {
+      total = parseInt(raw.total.split("/")[1], 10) || txList.length;
+    } else if (typeof raw?.total === "number") {
+      total = raw.total;
+    }
+    return { transactions: txList, total };
+  } catch {
+    return { transactions: [], total: 0 };
+  }
+}
+
+export async function getSandboxDetail(sandboxId?: string): Promise<any | null> {
+  const id = sandboxId || process.env.SANDBOX_ID || "";
+  if (!id) return null;
+  try {
+    return await conwayRequest("GET", `/v1/sandboxes/${id}`);
+  } catch {
+    return null;
+  }
+}

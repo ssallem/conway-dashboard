@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Header } from "@/components/layout/header";
-import { useTurns } from "@/hooks/use-status";
+import { useLogs } from "@/hooks/use-status";
 import { useEventStream } from "@/hooks/use-event-stream";
 import {
   Card,
@@ -21,8 +21,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { ChevronLeft, ChevronRight, Eye } from "lucide-react";
-import type { Turn } from "@/types/automaton";
+import { ChevronLeft, ChevronRight, Eye, Cloud } from "lucide-react";
+import type { Turn, ApiLog } from "@/types/automaton";
 
 function formatTime(timestamp: string): string {
   try {
@@ -158,10 +158,29 @@ function TurnDetail({ turn }: { turn: Turn }) {
   );
 }
 
+function typeBadgeColor(type: string): string {
+  switch (type) {
+    case "inference":
+      return "text-blue-400 border-blue-500/30";
+    case "tool_use":
+      return "text-purple-400 border-purple-500/30";
+    case "credit_check":
+      return "text-emerald-400 border-emerald-500/30";
+    case "transfer_in":
+      return "text-green-400 border-green-500/30";
+    case "transfer_out":
+      return "text-orange-400 border-orange-500/30";
+    case "funding_request":
+      return "text-yellow-400 border-yellow-500/30";
+    default:
+      return "text-zinc-400 border-zinc-600";
+  }
+}
+
 export default function LogsPage() {
   const [page, setPage] = useState(0);
   const pageSize = 20;
-  const { turns, total, isLoading, refresh } = useTurns(
+  const { source, turns, logs, total, isLoading, refresh } = useLogs(
     pageSize,
     page * pageSize
   );
@@ -176,12 +195,22 @@ export default function LogsPage() {
         connected={connected}
         onRefresh={() => refresh()}
       />
-      <main className="flex-1 overflow-auto p-4 md:p-6">
+      <main className="flex-1 overflow-auto p-4 md:p-6 space-y-4">
+        {/* API mode notice banner */}
+        {source === "api" && (
+          <div className="flex items-center gap-2 rounded-lg bg-blue-500/10 border border-blue-500/20 px-4 py-2.5">
+            <Cloud className="h-4 w-4 text-blue-400 shrink-0" />
+            <p className="text-xs text-blue-300">
+              클라우드 모드: 간략 활동 로그 (상세 로그는 로컬에서 확인)
+            </p>
+          </div>
+        )}
+
         <Card className="bg-zinc-900 border-zinc-800">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <CardTitle className="text-sm font-medium text-zinc-300">
-                턴 히스토리 ({total}건)
+                활동 로그 ({total}건)
               </CardTitle>
               <div className="flex items-center gap-2">
                 <Button
@@ -218,47 +247,95 @@ export default function LogsPage() {
                     <Skeleton key={i} className="h-12 bg-zinc-800" />
                   ))}
                 </div>
-              ) : turns.length === 0 ? (
-                <p className="text-sm text-zinc-500 text-center py-8">
-                  턴 기록이 없습니다
-                </p>
-              ) : (
-                <div className="space-y-1">
-                  {turns.map((turn: Turn) => (
-                    <div
-                      key={turn.id}
-                      className="flex items-center gap-3 rounded-lg bg-zinc-800/30 border border-zinc-800/50 px-3 py-2 hover:bg-zinc-800/50 transition-colors"
-                    >
-                      <span className="text-[10px] text-zinc-600 font-mono w-32 shrink-0">
-                        {formatTime(turn.timestamp)}
-                      </span>
-                      <Badge
-                        variant="outline"
-                        className={`text-[10px] shrink-0 ${
-                          turn.state === "running"
-                            ? "text-emerald-400 border-emerald-500/30"
-                            : turn.state === "critical" || turn.state === "dead"
-                              ? "text-red-400 border-red-500/30"
-                              : "text-zinc-400 border-zinc-600"
-                        }`}
-                      >
-                        {turn.state}
-                      </Badge>
-                      <span className="text-xs text-zinc-400 truncate flex-1">
-                        {turn.thinking
-                          ? turn.thinking.slice(0, 100)
-                          : "(사고 없음)"}
-                      </span>
-                      <span className="text-[10px] text-zinc-600 font-mono shrink-0">
-                        ${(turn.costCents / 100).toFixed(3)}
-                      </span>
-                      <span className="text-[10px] text-zinc-600 shrink-0">
-                        {turn.toolCalls.length}건
-                      </span>
-                      <TurnDetail turn={turn} />
+              ) : source === "api" ? (
+                /* ── API Mode: Credit history table ── */
+                logs.length === 0 ? (
+                  <p className="text-sm text-zinc-500 text-center py-8">
+                    활동 기록이 없습니다
+                  </p>
+                ) : (
+                  <div className="space-y-1">
+                    {/* Table Header */}
+                    <div className="flex items-center gap-3 px-3 py-1.5 text-[10px] text-zinc-600 uppercase tracking-wider">
+                      <span className="w-32 shrink-0">시간</span>
+                      <span className="w-24 shrink-0">유형</span>
+                      <span className="flex-1">모델</span>
+                      <span className="w-20 shrink-0 text-right">비용</span>
+                      <span className="w-20 shrink-0 text-right">잔액</span>
                     </div>
-                  ))}
-                </div>
+                    {logs.map((log: ApiLog) => (
+                      <div
+                        key={log.id}
+                        className="flex items-center gap-3 rounded-lg bg-zinc-800/30 border border-zinc-800/50 px-3 py-2 hover:bg-zinc-800/50 transition-colors"
+                      >
+                        <span className="text-[10px] text-zinc-600 font-mono w-32 shrink-0">
+                          {formatTime(log.timestamp)}
+                        </span>
+                        <span className="w-24 shrink-0">
+                          <Badge
+                            variant="outline"
+                            className={`text-[10px] ${typeBadgeColor(log.type)}`}
+                          >
+                            {log.type}
+                          </Badge>
+                        </span>
+                        <span className="text-xs text-zinc-400 truncate flex-1">
+                          {log.model || "-"}
+                        </span>
+                        <span className="text-[10px] text-zinc-600 font-mono w-20 shrink-0 text-right">
+                          ${((log.costCents ?? 0) / 100).toFixed(4)}
+                        </span>
+                        <span className="text-[10px] text-zinc-500 font-mono w-20 shrink-0 text-right">
+                          ${((log.balanceAfterCents ?? 0) / 100).toFixed(2)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )
+              ) : (
+                /* ── DB Mode: Full turn details (existing behavior) ── */
+                turns.length === 0 ? (
+                  <p className="text-sm text-zinc-500 text-center py-8">
+                    턴 기록이 없습니다
+                  </p>
+                ) : (
+                  <div className="space-y-1">
+                    {turns.map((turn: Turn) => (
+                      <div
+                        key={turn.id}
+                        className="flex items-center gap-3 rounded-lg bg-zinc-800/30 border border-zinc-800/50 px-3 py-2 hover:bg-zinc-800/50 transition-colors"
+                      >
+                        <span className="text-[10px] text-zinc-600 font-mono w-32 shrink-0">
+                          {formatTime(turn.timestamp)}
+                        </span>
+                        <Badge
+                          variant="outline"
+                          className={`text-[10px] shrink-0 ${
+                            turn.state === "running"
+                              ? "text-emerald-400 border-emerald-500/30"
+                              : turn.state === "critical" || turn.state === "dead"
+                                ? "text-red-400 border-red-500/30"
+                                : "text-zinc-400 border-zinc-600"
+                          }`}
+                        >
+                          {turn.state}
+                        </Badge>
+                        <span className="text-xs text-zinc-400 truncate flex-1">
+                          {turn.thinking
+                            ? turn.thinking.slice(0, 100)
+                            : "(사고 없음)"}
+                        </span>
+                        <span className="text-[10px] text-zinc-600 font-mono shrink-0">
+                          ${(turn.costCents / 100).toFixed(3)}
+                        </span>
+                        <span className="text-[10px] text-zinc-600 shrink-0">
+                          {turn.toolCalls.length}건
+                        </span>
+                        <TurnDetail turn={turn} />
+                      </div>
+                    ))}
+                  </div>
+                )
               )}
             </ScrollArea>
           </CardContent>
