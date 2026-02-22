@@ -42,6 +42,10 @@ export async function getCreditsBalance(): Promise<number> {
   }
 }
 
+export async function getTransactionHistory(limit: number = 20, offset: number = 0): Promise<any> {
+  return conwayRequest("GET", `/v1/credits/history?limit=${limit}&offset=${offset}`);
+}
+
 export async function getSandboxStatus(): Promise<{
   status: string;
   error?: string;
