@@ -7,7 +7,8 @@ export type AgentState =
   | "sleeping"
   | "low_compute"
   | "critical"
-  | "dead";
+  | "dead"
+  | "stopped";
 
 export type InputSource =
   | "heartbeat"

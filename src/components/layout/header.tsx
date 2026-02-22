@@ -21,6 +21,7 @@ const stateColors: Record<AgentState, string> = {
   low_compute: "bg-orange-500/20 text-orange-400 border-orange-500/30",
   critical: "bg-red-500/20 text-red-400 border-red-500/30",
   dead: "bg-red-700/20 text-red-500 border-red-700/30",
+  stopped: "bg-zinc-600/20 text-zinc-300 border-zinc-500/30",
 };
 
 const stateLabels: Record<AgentState, string> = {
@@ -31,6 +32,7 @@ const stateLabels: Record<AgentState, string> = {
   low_compute: "저전력",
   critical: "위험",
   dead: "중단됨",
+  stopped: "수동 중단",
 };
 
 export function Header({
@@ -63,7 +65,9 @@ export function Header({
                   ? "bg-emerald-400 animate-pulse"
                   : agentState === "dead" || agentState === "critical"
                     ? "bg-red-500"
-                    : "bg-zinc-400"
+                    : agentState === "stopped"
+                      ? "bg-zinc-400"
+                      : "bg-zinc-400"
               )}
             />
             {stateLabels[agentState]}

@@ -36,9 +36,11 @@ export async function GET() {
 
     // DB queries (synchronous)
     const agentState = getAgentState();
-    // Fallback: when DB not available, use sandbox status
+    // Priority: env override > DB state > sandbox fallback
     let finalAgentState = agentState;
-    if (agentState === "setup" && sandboxDetail?.status === "running") {
+    if (process.env.AGENT_STATE) {
+      finalAgentState = process.env.AGENT_STATE as any;
+    } else if (agentState === "setup" && sandboxDetail?.status === "running") {
       finalAgentState = "running";
     }
 
