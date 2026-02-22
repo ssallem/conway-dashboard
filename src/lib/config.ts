@@ -49,6 +49,11 @@ export function getApiKey(): string {
 }
 
 export function getWalletPrivateKey(): string {
+  // 1. Environment variable (for cloud/Vercel)
+  if (process.env.WALLET_PRIVATE_KEY) {
+    return process.env.WALLET_PRIVATE_KEY;
+  }
+  // 2. Local wallet.json file
   try {
     const raw = readFileSync(join(CONFIG_DIR, "wallet.json"), "utf-8");
     const data = JSON.parse(raw);

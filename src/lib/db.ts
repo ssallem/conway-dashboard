@@ -1,4 +1,4 @@
-import Database from "better-sqlite3";
+import { existsSync } from "fs";
 import type {
   Turn,
   ToolCallResult,
@@ -8,27 +8,45 @@ import type {
   AgentState,
 } from "@/types/automaton";
 
-const DB_PATH =
-  process.env.AUTOMATON_DB_PATH || "C:\\Users\\mellass\\.automaton\\state.db";
+let _db: any = null;
 
-let _db: Database.Database | null = null;
+function getDb(): any | null {
+  if (_db) return _db;
 
-function getDb(): Database.Database {
-  if (!_db) {
-    _db = new Database(DB_PATH, { readonly: true, fileMustExist: true });
+  const dbPath =
+    process.env.AUTOMATON_DB_PATH || "";
+
+  // No DB path configured or file doesn't exist -> return null (cloud mode)
+  if (!dbPath || !existsSync(dbPath)) return null;
+
+  try {
+    // Dynamic require to avoid build errors when better-sqlite3 is not installed
+    const Database = require("better-sqlite3");
+    _db = new Database(dbPath, { readonly: true, fileMustExist: true });
     _db.pragma("journal_mode = WAL");
+    return _db;
+  } catch {
+    // better-sqlite3 not available (e.g. Vercel serverless)
+    return null;
   }
-  return _db;
 }
 
 function safeQuery<T>(fn: () => T, fallback: T): T {
   try {
+    const db = getDb();
+    if (!db) return fallback;
     return fn();
   } catch {
     // DB may not exist or table may not exist
     _db = null;
     return fallback;
   }
+}
+
+// ─── DB availability check ──────────────────────────────────────
+
+export function isDbAvailable(): boolean {
+  return getDb() !== null;
 }
 
 // ─── Agent State ─────────────────────────────────────────────────

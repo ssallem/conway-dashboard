@@ -2,11 +2,12 @@ import { NextResponse } from "next/server";
 import {
   getAgentState,
   getRecentTurns,
-  getRecentTransactions,
   getTurnCount,
   getTotalCost,
+  isDbAvailable,
 } from "@/lib/db";
 import { getCreditsBalance } from "@/lib/conway-api";
+import { getUsdcBalance } from "@/lib/usdc";
 
 export const dynamic = "force-dynamic";
 
@@ -14,18 +15,24 @@ export async function GET() {
   const encoder = new TextEncoder();
   let closed = false;
 
+  const walletAddress = process.env.AGENT_WALLET_ADDRESS || "";
+
   const stream = new ReadableStream({
     async start(controller) {
       // Send initial state
       try {
         const state = getAgentState();
-        const creditsCents = await getCreditsBalance();
+        const [creditsCents, usdcBalance] = await Promise.all([
+          getCreditsBalance(),
+          walletAddress ? getUsdcBalance(walletAddress) : Promise.resolve(0),
+        ]);
         const turnCount = getTurnCount();
         const totalCostCents = getTotalCost();
+        const dbAvailable = isDbAvailable();
 
         const initEvent = {
           type: "init",
-          data: { state, creditsCents, turnCount, totalCostCents },
+          data: { state, creditsCents, usdcBalance, turnCount, totalCostCents, dbAvailable },
           timestamp: new Date().toISOString(),
         };
 
@@ -39,6 +46,7 @@ export async function GET() {
       // Poll for changes every 5 seconds
       let lastTurnCount = 0;
       let lastState = "";
+      let lastCreditsCents = -1;
 
       const interval = setInterval(async () => {
         if (closed) {
@@ -62,8 +70,8 @@ export async function GET() {
             );
           }
 
-          // New turn event
-          if (lastTurnCount > 0 && currentTurnCount > lastTurnCount) {
+          // New turn event (only if DB is available)
+          if (isDbAvailable() && lastTurnCount > 0 && currentTurnCount > lastTurnCount) {
             const newTurns = getRecentTurns(
               currentTurnCount - lastTurnCount
             );
@@ -77,6 +85,24 @@ export async function GET() {
                 encoder.encode(`data: ${JSON.stringify(event)}\n\n`)
               );
             }
+          }
+
+          // Credits polling (always works - cloud or local)
+          try {
+            const creditsCents = await getCreditsBalance();
+            if (lastCreditsCents >= 0 && creditsCents !== lastCreditsCents) {
+              const event = {
+                type: "credits_update",
+                data: { creditsCents },
+                timestamp: new Date().toISOString(),
+              };
+              controller.enqueue(
+                encoder.encode(`data: ${JSON.stringify(event)}\n\n`)
+              );
+            }
+            lastCreditsCents = creditsCents;
+          } catch {
+            // ignore credits polling errors
           }
 
           lastState = currentState;
