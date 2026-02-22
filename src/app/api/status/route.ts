@@ -36,14 +36,38 @@ export async function GET() {
 
     // DB queries (synchronous)
     const agentState = getAgentState();
+    // Fallback: when DB not available, use sandbox status
+    let finalAgentState = agentState;
+    if (agentState === "setup" && sandboxDetail?.status === "running") {
+      finalAgentState = "running";
+    }
+
     const turnCount = getTurnCount();
+    // Fallback: when DB not available, use API total inference count
+    let finalTurnCount = turnCount;
+    if (turnCount === 0 && creditHistoryRaw.total > 0) {
+      finalTurnCount = creditHistoryRaw.total;
+    }
+
     let totalCostCents = getTotalCost();
+    if (totalCostCents === 0 && creditHistoryRaw.transactions.length > 0) {
+      // Sum all negative (debit) transactions from credit history
+      totalCostCents = creditHistoryRaw.transactions
+        .filter((t: any) => t.amount_cents < 0)
+        .reduce((sum: number, t: any) => sum + Math.abs(t.amount_cents), 0);
+    }
     if (totalCostCents === 0) {
-      // Fallback: initial credits - current credits = total spent
+      // Secondary fallback: initial credits - current credits
       const initialCredits = parseInt(process.env.INITIAL_CREDITS_CENTS || "3000", 10);
       totalCostCents = Math.max(0, initialCredits - creditsCents);
     }
+
     const heartbeats = getHeartbeatEntries();
+    // Fallback: load from heartbeat.yml or use defaults
+    let finalHeartbeats = heartbeats;
+    if (heartbeats.length === 0) {
+      finalHeartbeats = loadHeartbeatYml();
+    }
     const children = getChildren();
     const recentTurns = getRecentTurns(20);
     const costByHour = getCostByHour();
@@ -102,17 +126,17 @@ export async function GET() {
 
     const status: DashboardStatus = {
       agentName: config?.name || "automaton",
-      agentState,
+      agentState: finalAgentState,
       walletAddress,
       sandboxId: process.env.SANDBOX_ID || config?.sandboxId || "",
       creditsCents,
       usdcBalance,
-      turnCount,
+      turnCount: finalTurnCount,
       totalCostCents,
       uptime: "",
       version: config?.version || "0.1.0",
       inferenceModel: config?.inferenceModel || "unknown",
-      heartbeats,
+      heartbeats: finalHeartbeats,
       children,
       recentTurns,
       recentTransactions,
@@ -173,6 +197,44 @@ function computeActivitySummary(transactions: any[]): ActivitySummary {
   const mostActiveHour = Object.entries(hourCounts)
     .sort((a, b) => b[1] - a[1])[0]?.[0] || "-";
   return { avgCostPerTurnCents, totalTurnsToday, mostActiveHour, totalCostTodayCents };
+}
+
+function loadHeartbeatYml(): any[] {
+  try {
+    const { readFileSync } = require("fs");
+    const { join } = require("path");
+    const configDir = process.env.AUTOMATON_CONFIG_DIR || "C:\\Users\\mellass\\.automaton";
+    const raw = readFileSync(join(configDir, "heartbeat.yml"), "utf-8");
+    // Simple YAML parse for heartbeat entries
+    const entries: any[] = [];
+    const lines = raw.split("\n");
+    let current: any = null;
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith("- name:")) {
+        if (current) entries.push(current);
+        current = { name: trimmed.replace("- name:", "").trim() };
+      } else if (current && trimmed.startsWith("schedule:")) {
+        current.schedule = trimmed.replace("schedule:", "").trim().replace(/"/g, "");
+      } else if (current && trimmed.startsWith("task:")) {
+        current.task = trimmed.replace("task:", "").trim();
+      } else if (current && trimmed.startsWith("enabled:")) {
+        current.enabled = trimmed.replace("enabled:", "").trim() === "true";
+      }
+    }
+    if (current) entries.push(current);
+    return entries;
+  } catch {
+    // Ultimate fallback: hardcoded defaults
+    return [
+      { name: "heartbeat_ping", schedule: "0 * * * *", task: "heartbeat_ping", enabled: true },
+      { name: "check_credits", schedule: "0 */6 * * *", task: "check_credits", enabled: true },
+      { name: "check_usdc_balance", schedule: "0 */12 * * *", task: "check_usdc_balance", enabled: true },
+      { name: "check_for_updates", schedule: "0 0 * * *", task: "check_for_updates", enabled: false },
+      { name: "health_check", schedule: "0 * * * *", task: "health_check", enabled: true },
+      { name: "check_social_inbox", schedule: "0 */6 * * *", task: "check_social_inbox", enabled: false },
+    ];
+  }
 }
 
 function computeCostByHourFromApi(transactions: any[]): { hour: string; cost: number }[] {
